@@ -186,3 +186,26 @@ for(const base of ['#df9e87','#00ff00','#0000ff','#ff0000','#000000','#ffffff'])
 assert.equal(run('colorAtLightness(45,100,0)'),'#000000');
 assert.equal(run('colorAtLightness(240,100,1)'),'#ffffff');
 console.log('PASS: lightness stability across hue/saturation, monotonic ramps, equal L midpoints, black and white limits');
+
+// Names follow their sets through additions and deletions; deleting the final set is blocked.
+assert.equal(run('setNames.length'),run('stacks.length'));
+assert.equal(run("renameSet(0,'  skin <tone>  ')"),true);
+assert.equal(run('setNames[0]'),'skin <tone>');
+assert.equal(run("renameSet(0,'   ')"),false);
+assert.equal(run('setNames[0]'),'skin <tone>');
+run('selectColor(1,4)');
+const selectedBaseBeforeDelete=run('baseColors[1]');
+const selectedNameBeforeDelete=run('setNames[1]');
+run('removeSet(0)');
+assert.equal(run('selected[0]'),0);
+assert.equal(run('baseColors[selected[0]]'),selectedBaseBeforeDelete);
+assert.equal(run('setNames[selected[0]]'),selectedNameBeforeDelete);
+get('add').onclick();
+assert.equal(run('setNames.length'),run('stacks.length'));
+assert.ok(run('new Set(setNames).size===setNames.length'));
+while(run('stacks.length')>1)run('removeSet(0)');
+run('removeSet(0)');
+assert.equal(run('stacks.length'),1);
+assert.equal(run('setNames.length'),1);
+assert.equal(run('baseColors.length'),1);assert.equal(run('ramps.length'),1);
+console.log('PASS: rename validation, set/name alignment, selection preservation, unique new names and final-set protection');
