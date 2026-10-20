@@ -216,7 +216,7 @@ for (const name of ['pen','eraser']) $(name+'Size').oninput = e => {
   sizes[name]=+e.target.value; $(name+'SizeValue').textContent=sizes[name]+' px';
 };
 $('undo').onclick = () => travel(undo,redo); $('redo').onclick = () => travel(redo,undo);
-function point(e) { const r=canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}; }
+function point(e,r=canvas.getBoundingClientRect()) { return {x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}; }
 function sample(p) {
   const [r,g,b,a]=ctx.getImageData(Math.max(0,Math.min(1023,Math.floor(p.x))), Math.max(0,Math.min(1023,Math.floor(p.y))),1,1).data;
   ink='#'+[r,g,b].map(c=>Math.round(c*a/255+255-a).toString(16).padStart(2,'0')).join('');
@@ -224,21 +224,40 @@ function sample(p) {
 
 }
 function draw(p, first = false) {
+  const last=active.last;
+  if(!first && p.x===last.x && p.y===last.y) return;
   const translucent=active.tool==='pen' && active.opacity<100;
+  if(translucent && active.opacity===0){active.last=p;return;}
   const target=translucent?strokeCtx:ctx;
   target.globalCompositeOperation=active.tool==='eraser'?'destination-out':'source-over';
   target.fillStyle=active.ink;target.strokeStyle=active.ink;target.lineWidth=active.size;target.lineCap='round';target.lineJoin='round';
   target.beginPath();
   if(first){target.arc(p.x,p.y,active.size/2,0,Math.PI*2);target.fill();}
-  else{target.moveTo(active.last.x,active.last.y);target.lineTo(p.x,p.y);target.stroke();}
+  else{target.moveTo(last.x,last.y);target.lineTo(p.x,p.y);target.stroke();}
   if(translucent){
-    ctx.putImageData(active.before,0,0);
-    ctx.globalCompositeOperation='source-over';
-    ctx.globalAlpha=active.opacity/100;
-    ctx.drawImage(strokeCanvas,0,0);
-    ctx.globalAlpha=1;
+    // Include round caps and antialiasing; only this batch's changed area needs restoring.
+    const margin=active.size/2+2;
+    const x=Math.max(0,Math.floor(Math.min(last.x,p.x)-margin));
+    const y=Math.max(0,Math.floor(Math.min(last.y,p.y)-margin));
+    const right=Math.min(canvas.width,Math.ceil(Math.max(last.x,p.x)+margin));
+    const bottom=Math.min(canvas.height,Math.ceil(Math.max(last.y,p.y)+margin));
+    if(right>x && bottom>y){
+      const d=active.dirty;
+      active.dirty=d?{x:Math.min(d.x,x),y:Math.min(d.y,y),right:Math.max(d.right,right),bottom:Math.max(d.bottom,bottom)}:{x,y,right,bottom};
+    }
   }
   active.last=p;
+}
+function presentStroke() {
+  if(!active.dirty) return;
+  const {x,y,right,bottom}=active.dirty,w=right-x,h=bottom-y;
+  // Composite from the original snapshot to preserve constant opacity at crossings.
+  ctx.putImageData(active.before,0,0,x,y,w,h);
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=active.opacity/100;
+  ctx.drawImage(strokeCanvas,x,y,w,h,x,y,w,h);
+  ctx.globalAlpha=1;
+  active.dirty=null;
 }
 canvas.addEventListener('pointerdown', e => {
   if (active !== null || e.button!==0) return;
@@ -246,16 +265,19 @@ canvas.addEventListener('pointerdown', e => {
   if (tool==='picker' || e.altKey) {sample(p);return;}
   active={id:e.pointerId,before:snapshot(),last:p,tool,size:sizes[tool],ink,opacity:penOpacity};
   if(tool==='pen' && active.opacity<100)strokeCtx.clearRect(0,0,1024,1024);
-  canvas.setPointerCapture(e.pointerId); draw(p,true); historyButtons();
+  canvas.setPointerCapture(e.pointerId); draw(p,true); presentStroke(); historyButtons();
 });
 canvas.addEventListener('pointermove', e => {
   if (!active || active.id!==e.pointerId) return;
-  for (const event of e.getCoalescedEvents?.() || [e]) draw(point(event));
+    const rect=canvas.getBoundingClientRect();
+  const coalesced=e.getCoalescedEvents?.();
+  for(const event of coalesced?.length?coalesced:[e]) draw(point(event,rect));
+  presentStroke();
 });
 function finish(e, cancel=false) {
   if (!active || active.id!==e.pointerId) return;
   if(cancel) ctx.putImageData(active.before,0,0);
-  else {draw(point(e)); undo.push(active.before); if(undo.length>10) undo.shift(); redo.length=0;}
+  else {draw(point(e)); presentStroke(); undo.push(active.before); if(undo.length>10) undo.shift(); redo.length=0;}
   active=null; ctx.globalCompositeOperation='source-over'; historyButtons(); if(fitZoom)renderZoom();
   if(canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
 }

@@ -8,12 +8,13 @@ class Element {
   querySelector(){return new Element()}
   addEventListener(k,f){this.handlers[k]=f}
 }
-let pixels=0,restoreCount=0,compositeCount=0;
+let pixels=0,restoreCount=0,compositeCount=0,layoutReads=0;
+const restores=[],composites=[];
 const strokeContext={clearRect(){},beginPath(){},arc(){},fill(){},stroke(){},moveTo(){},lineTo(){}};
-const context={getImageData:()=>({value:pixels,data:[0,0,0,0]}),putImageData(d){restoreCount++;pixels=d.value},drawImage(){compositeCount++;pixels++},beginPath(){},arc(){},fill(){pixels++},stroke(){pixels++},moveTo(){},lineTo(){}};
+const context={getImageData:()=>({value:pixels,data:[0,0,0,0]}),putImageData(d,...args){restoreCount++;pixels=d.value;restores.push(args)},drawImage(...args){compositeCount++;pixels++;composites.push(args)},beginPath(){},arc(){},fill(){pixels++},stroke(){pixels++},moveTo(){},lineTo(){}};
 const elements=new Map();
 const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id)};
-Object.assign(get('canvas'),{getContext:()=>context,width:1024,height:1024,getBoundingClientRect:()=>({left:0,top:0,width:512,height:512}),setPointerCapture(){},hasPointerCapture:()=>false});
+Object.assign(get('canvas'),{getContext:()=>context,width:1024,height:1024,getBoundingClientRect:()=>{layoutReads++;return {left:0,top:0,width:512,height:512}},setPointerCapture(){},hasPointerCapture:()=>false});
 Object.assign(get('viewport'),{clientWidth:544,clientHeight:800,scrollLeft:0,scrollTop:0});
 const sandbox={ResizeObserver:class {observe(){}},document:{getElementById:get,querySelectorAll:()=>[],createElement:tag=>tag==='canvas'?Object.assign(new Element(),{getContext:()=>strokeContext}):new Element(),addEventListener(){}},setTimeout,URL,console};
 vm.createContext(sandbox);
@@ -100,6 +101,35 @@ get('penOpacity').oninput({target:{value:'100'}});
 c.handlers.pointerdown(event(85));c.handlers.pointercancel(event(85));
 assert.equal(pixels,opaqueBeforeCancel);
 console.log('PASS: opaque pen bypasses restore/composite, translucent path retained, opaque cancel restored');
+// Dense pencil input composites once per event and restores only the changed rectangle.
+run("setTool('pen')");get('penOpacity').oninput({target:{value:'35'}});
+c.handlers.pointerdown(event(90));
+const restoreBefore=restoreCount,compositeBefore=compositeCount,layoutBefore=layoutReads;
+const samples=Array.from({length:32},(_,i)=>({...event(90),clientX:21+i,clientY:22+i}));
+c.handlers.pointermove({...samples[31],getCoalescedEvents:()=>samples});
+assert.equal(restoreCount-restoreBefore,1);assert.equal(compositeCount-compositeBefore,1);
+assert.equal(layoutReads-layoutBefore,1);
+const region=restores.at(-1);
+assert.equal(region.length,6);assert.ok(region[4]*region[5]<1024*1024/10);
+assert.deepEqual(composites.at(-1).slice(1,5),region.slice(2));
+assert.equal(run('active.last.x'),104);
+const beforeEmpty=compositeCount;
+c.handlers.pointermove({...event(90),clientX:60,clientY:60,getCoalescedEvents:()=>[]});
+assert.equal(compositeCount,beforeEmpty+1);assert.equal(run('active.last.x'),120);
+const beforeUp=compositeCount;
+c.handlers.pointerup({...event(90),clientX:60,clientY:60});assert.equal(compositeCount,beforeUp);
+const beforeCanceled=pixels;
+c.handlers.pointerdown(event(91));c.handlers.pointermove({...event(91),clientX:90,clientY:90});
+c.handlers.pointercancel(event(91));assert.equal(pixels,beforeCanceled);
+get('penOpacity').oninput({target:{value:'0'}});
+const beforeZero=pixels,zeroComposites=compositeCount;
+c.handlers.pointerdown(event(92));c.handlers.pointermove({...event(92),clientX:30,clientY:30});c.handlers.pointerup(event(92));
+assert.equal(pixels,beforeZero);assert.equal(compositeCount,zeroComposites);
+get('penOpacity').oninput({target:{value:'50'}});
+c.handlers.pointerdown({...event(93),clientX:0,clientY:0});
+assert.equal(restores.at(-1)[2],0);assert.equal(restores.at(-1)[3],0);
+c.handlers.pointerup({...event(93),clientX:0,clientY:0});
+console.log('PASS: 32 samples use one cropped composite and one layout read; empty-sample fallback, cancel, zero opacity and edge clipping');
 // Shadow and highlight saturation remain independent of the base color.
 run("selectColor(0,2); editBase('#c08040')");
 run('ramps[0].shadowSat=70; ramps[0].highlightSat=70; regenerate(0)');
