@@ -8,9 +8,9 @@ class Element {
   querySelector(){return new Element()}
   addEventListener(k,f){this.handlers[k]=f}
 }
-let pixels=0;
+let pixels=0,restoreCount=0,compositeCount=0;
 const strokeContext={clearRect(){},beginPath(){},arc(){},fill(){},stroke(){},moveTo(){},lineTo(){}};
-const context={getImageData:()=>({value:pixels,data:[0,0,0,0]}),putImageData:d=>pixels=d.value,drawImage(){pixels++},beginPath(){},arc(){},fill(){pixels++},stroke(){pixels++},moveTo(){},lineTo(){}};
+const context={getImageData:()=>({value:pixels,data:[0,0,0,0]}),putImageData(d){restoreCount++;pixels=d.value},drawImage(){compositeCount++;pixels++},beginPath(){},arc(){},fill(){pixels++},stroke(){pixels++},moveTo(){},lineTo(){}};
 const elements=new Map();
 const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id)};
 Object.assign(get('canvas'),{getContext:()=>context,width:1024,height:1024,getBoundingClientRect:()=>({left:0,top:0,width:512,height:512}),setPointerCapture(){},hasPointerCapture:()=>false});
@@ -82,6 +82,24 @@ run("setTool('eraser')");c.handlers.pointerdown(event(82));
 assert.equal(context.globalCompositeOperation,'destination-out');assert.equal(context.globalAlpha,1);
 c.handlers.pointerup(event(82));
 console.log('PASS: pen opacity capture, zero opacity and eraser alpha isolation');
+// Opaque strokes bypass compositing; translucent strokes keep the existing path.
+run("setTool('pen')");get('penOpacity').oninput({target:{value:'100'}});
+const opaqueRestores=restoreCount,opaqueComposites=compositeCount;
+c.handlers.pointerdown(event(83));
+c.handlers.pointermove({...event(83),clientX:40,clientY:40});
+c.handlers.pointerup({...event(83),clientX:50,clientY:50});
+assert.equal(restoreCount,opaqueRestores);assert.equal(compositeCount,opaqueComposites);
+get('penOpacity').oninput({target:{value:'50'}});
+const translucentRestores=restoreCount,translucentComposites=compositeCount;
+c.handlers.pointerdown(event(84));
+c.handlers.pointermove({...event(84),clientX:40,clientY:40});
+c.handlers.pointerup({...event(84),clientX:50,clientY:50});
+assert.equal(restoreCount-translucentRestores,3);assert.equal(compositeCount-translucentComposites,3);
+const opaqueBeforeCancel=pixels;
+get('penOpacity').oninput({target:{value:'100'}});
+c.handlers.pointerdown(event(85));c.handlers.pointercancel(event(85));
+assert.equal(pixels,opaqueBeforeCancel);
+console.log('PASS: opaque pen bypasses restore/composite, translucent path retained, opaque cancel restored');
 // Shadow and highlight saturation remain independent of the base color.
 run("selectColor(0,2); editBase('#c08040')");
 run('ramps[0].shadowSat=70; ramps[0].highlightSat=70; regenerate(0)');
