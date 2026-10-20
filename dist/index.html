@@ -2,17 +2,16 @@
 <html lang="ja">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ガマっとお絵かき</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header class="site-heading"><h1>color ribbon sketch</h1><p>好きなグラデーションカラーで絵を描ける</p></header>
+<header class="site-heading"><h1>color ribbon sketch</h1></header>
 <main>
   <aside class="settings-panel" aria-label="描画設定">
-    <label class="size">ペンのサイズ <output id="penSizeValue">16 px</output><input id="penSize" type="range" min="1" max="500" value="16"></label>
+    <label class="size">ペンのサイズ <output id="penSizeValue">15 px</output><input id="penSize" type="range" min="0" max="7" step="1" value="3" aria-valuetext="15 px"></label>
     <label class="size">ペンの不透明度 <output id="penOpacityValue">100%</output><input id="penOpacity" type="range" min="0" max="100" value="100"></label>
-    <label class="size">消しゴムのサイズ <output id="eraserSizeValue">16 px</output><input id="eraserSize" type="range" min="1" max="500" value="16"></label>
+    <label class="size">消しゴムのサイズ <output id="eraserSizeValue">15 px</output><input id="eraserSize" type="range" min="0" max="7" step="1" value="3" aria-valuetext="15 px"></label>
     <section class="shortcuts" aria-label="キーボードショートカット">
       <h2>ショートカット</h2>
       <dl><dt>B</dt><dd>ペン</dd><dt>E</dt><dd>消しゴム</dd><dt>I</dt><dd>スポイト</dd></dl>
       <dl class="shortcut-history"><dt>Alt＋クリック</dt><dd>スポイト</dd><dt>Ctrl＋Z</dt><dd>元に戻す</dd><dt>Ctrl＋Shift＋Z<br>Ctrl＋Y</dt><dd>やり直す</dd></dl>
-      <p>Mac：Ctrlは⌘でも可</p>
     </section>
   </aside>
   <section class="workspace">
@@ -34,7 +33,7 @@
     <section class="palette"><h2>カラーセット</h2><div id="stacks"></div><button id="add" class="add" title="カラーセットを追加" aria-label="セットを追加">＋</button></section>
     <section class="editor" aria-label="色調整"><h2>ベース</h2>
       <label>色相 <output id="hValue"></output><input id="h" type="range" min="0" max="359" step="1"></label>
-      <label>明度（V） <output id="vValue"></output><input id="v" type="range" min="0" max="100" step="1"></label>
+      <label>明度<output id="vValue"></output><input id="v" type="range" min="0" max="100" step="1"></label>
       <label>彩度 <output id="sValue"></output><input id="s" type="range" min="0" max="100" step="1"></label>
       <div class="current"><span id="preview"></span><div><small id="role"></small><strong id="hex"></strong></div><input id="color" type="color" aria-label="選択色を変更"></div>
       <label class="apply-all"><input id="applyAllSets" type="checkbox">影・ハイライトの変更を全セットに適用</label>

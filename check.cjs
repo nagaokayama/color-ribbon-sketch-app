@@ -64,11 +64,17 @@ console.log('PASS: 10-stroke limit, undo/redo, redo branching, canceled stroke, 
 
 assert.equal(run('point({clientX:256,clientY:128}).x'),512);
 assert.equal(run('point({clientX:256,clientY:128}).y'),256);
-get('penSize').oninput({target:{value:'9'}});
-get('eraserSize').oninput({target:{value:'42'}});
-run("setTool('pen')");c.handlers.pointerdown(event(70));assert.equal(run('active.size'),9);c.handlers.pointerup(event(70));
-run("setTool('eraser')");c.handlers.pointerdown(event(71));assert.equal(run('active.size'),42);c.handlers.pointerup(event(71));
-console.log('PASS: scaled canvas coordinates and independent pen/eraser sizes');
+get('penSize').oninput({target:{value:'2'}});
+get('eraserSize').oninput({target:{value:'7'}});
+run("setTool('pen')");c.handlers.pointerdown(event(70));assert.equal(run('active.size'),8);c.handlers.pointerup(event(70));
+run("setTool('eraser')");c.handlers.pointerdown(event(71));assert.equal(run('active.size'),300);c.handlers.pointerup(event(71));
+for(const [index,size] of [1,4,8,15,20,60,100,300].entries()){
+  get('penSize').oninput({target:{value:String(index)}});
+  assert.equal(run('sizes.pen'),size);
+  assert.equal(get('penSizeValue').textContent,size+' px');
+}
+assert.equal(run('sizes.eraser'),300);
+console.log('PASS: scaled canvas coordinates and independent eight-step pen/eraser sizes');
 
 // Opacity is fixed for each pen stroke, composited once, and reset for erasing.
 get('penOpacity').oninput({target:{value:'35'}});
