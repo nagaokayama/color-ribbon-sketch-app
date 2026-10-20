@@ -25,6 +25,43 @@ const sliderLabel = (key,value,unit) => value+unit;
 const newRamp = () => Object.fromEntries(rampFields.map(([key,,,,value])=>[key,value]));
 const ramps = stacks.map(newRamp);
 const baseColors = stacks.map(colors => colors[2]);
+const setNames=stacks.map((_,i)=>'SET '+String(i+1).padStart(2,'0'));
+let nextSetNumber=stacks.length+1;
+let menuSet=null;
+function closeSetMenu(returnFocus=false){
+  $('setMenu').hidden=true;
+  document.querySelectorAll('.stack-more').forEach(button=>button.setAttribute('aria-expanded','false'));
+  const button=menuSet===null?null:$('stacks').children[menuSet]?.querySelector('.stack-more');
+  menuSet=null;
+  if(returnFocus)button?.focus();
+}
+function removeSet(i){
+  if(stacks.length===1)return;
+  stacks.splice(i,1);ramps.splice(i,1);baseColors.splice(i,1);setNames.splice(i,1);
+  selected[0]=selected[0]===i?Math.max(0,i-1):selected[0]>i?selected[0]-1:selected[0];
+  selectColor(...selected);
+}
+function renameSet(i,name){
+  if(typeof name!=='string' || !name.trim())return false;
+  setNames[i]=name.trim().slice(0,80);return true;
+}
+$('renameSet').onclick=()=>{
+  const i=menuSet;closeSetMenu();if(i===null)return;
+  const row=$('stacks').children[i],input=row.querySelector('.set-name-input'),label=row.querySelector('.set-name');
+  input.value=setNames[i];label.hidden=true;input.hidden=false;input.focus();input.select();
+};
+$('deleteSet').onclick=()=>{const i=menuSet;closeSetMenu();if(i!==null)removeSet(i);};
+document.addEventListener('click',e=>{if(!e.target.closest('#setMenu,.stack-more'))closeSetMenu();});
+document.addEventListener('scroll',()=>closeSetMenu(),true);
+$('setMenu').onkeydown=e=>{
+  if(e.key==='Escape'){e.preventDefault();closeSetMenu(true);}
+  else if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault();
+    const buttons=[$('renameSet'),$('deleteSet')].filter(button=>!button.disabled);
+    const index=buttons.indexOf(document.activeElement);
+    buttons[(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();
+  } else if(e.key==='Tab')closeSetMenu();
+};
 const clamp = x => Math.max(0,Math.min(100,x));
 // Oklab transforms by Björn Ottosson: https://bottosson.github.io/posts/oklab/
 function hexToOklab(hex) {
@@ -150,22 +187,35 @@ function hsvToHex(h,s,v) {
   return '#'+[5,3,1].map(n=>{const k=(n+h/60)%6;return Math.round(255*v*(1-s*Math.max(0,Math.min(k,4-k,1)))).toString(16).padStart(2,'0');}).join('');
 }
 function renderStacks() {
+  closeSetMenu();
   $('stacks').replaceChildren();
-  stacks.forEach((colors, i) => {
-    const row = document.createElement('div'); row.className = 'stack';
-    row.innerHTML = `<div class="stack-title"><span>SET ${String(i+1).padStart(2,'0')}</span><button class="remove" aria-label="色セット${i+1}を削除" ${stacks.length===1?'disabled':''}>×</button></div><div class="swatches"></div><div class="labels"><span>濃い影</span><span>影</span><span>ベース</span><span>ハイライト</span><span>明るいハイライト</span></div>`;
-    row.querySelector('.remove').onclick = () => {
-      if (stacks.length===1) return;
-      stacks.splice(i,1); ramps.splice(i,1); baseColors.splice(i,1);
-      selected[0] = selected[0] === i ? Math.max(0,i-1) : selected[0] > i ? selected[0]-1 : selected[0];
-      selectColor(...selected);
+  stacks.forEach((colors,i)=>{
+    const row=document.createElement('div');row.className='stack';
+    row.innerHTML='<div class="stack-title"><span class="set-name"></span><input class="set-name-input" maxlength="80" aria-label="セット名" hidden></div><div class="stack-colors"><div class="swatches"></div><button class="stack-more" aria-haspopup="menu" aria-expanded="false" aria-controls="setMenu">…</button></div>';
+    const label=row.querySelector('.set-name'),input=row.querySelector('.set-name-input'),more=row.querySelector('.stack-more');
+    label.textContent=setNames[i];more.setAttribute('aria-label',setNames[i]+'のメニュー');
+    input.onblur=()=>{renameSet(i,input.value);label.textContent=setNames[i];more.setAttribute('aria-label',setNames[i]+'のメニュー');colors.forEach((color,j)=>row.querySelector('.swatches').children[j].setAttribute('aria-label',setNames[i]+' '+roles[j]+' '+color));input.hidden=true;label.hidden=false;};
+    input.onkeydown=e=>{
+      if(e.isComposing)return;
+      if(e.key==='Enter'){e.preventDefault();input.blur();more.focus();}
+      else if(e.key==='Escape'){e.preventDefault();input.value=setNames[i];input.blur();more.focus();}
     };
-    colors.forEach((color,j) => {
-      const button = document.createElement('button'); button.className = 'swatch';
-      button.style.background = color; button.title = `${roles[j]} ${color}`;
-      button.setAttribute('aria-label', `セット${i+1} ${roles[j]} ${color}`);
-      button.setAttribute('aria-pressed', selected[0]===i && selected[1]===j);
-      button.onclick = () => selectColor(i,j);
+    more.onclick=()=>{
+      if(menuSet===i){closeSetMenu();return;}
+      closeSetMenu();menuSet=i;more.setAttribute('aria-expanded','true');
+      const menu=$('setMenu'),rect=more.getBoundingClientRect();
+      $('deleteSet').disabled=stacks.length===1;
+      menu.hidden=false;
+      menu.style.left=Math.max(8,Math.min(rect.right-144,document.documentElement.clientWidth-152))+'px';
+      menu.style.top=Math.max(8,Math.min(rect.bottom+4,document.documentElement.clientHeight-menu.offsetHeight-8))+'px';
+      $('renameSet').focus();
+    };
+    colors.forEach((color,j)=>{
+      const button=document.createElement('button');button.className='swatch';
+      button.style.background=color;
+      button.setAttribute('aria-label',setNames[i]+' '+roles[j]+' '+color);
+      button.setAttribute('aria-pressed',selected[0]===i && selected[1]===j);
+      button.onclick=()=>selectColor(i,j);
       row.querySelector('.swatches').append(button);
     });
     $('stacks').append(row);
@@ -204,7 +254,7 @@ for(const [key,label,min,max,value,unit] of rampFields){
     ink=stacks[selected[0]][selected[1]];showColor(false);
   };
 }
-$('add').onclick=()=>{stacks.push([...stacks[selected[0]]]);ramps.push({...ramps[selected[0]]});baseColors.push(baseColors[selected[0]]);selectColor(stacks.length-1,2);};
+$('add').onclick=()=>{setNames.push('SET '+String(nextSetNumber++).padStart(2,'0'));stacks.push([...stacks[selected[0]]]);ramps.push({...ramps[selected[0]]});baseColors.push(baseColors[selected[0]]);selectColor(stacks.length-1,2);};
 document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
 for (const name of ['pen','eraser']) $(name+'Size').oninput = e => {
   sizes[name]=+e.target.value; $(name+'SizeValue').textContent=sizes[name]+' px';
