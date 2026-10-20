@@ -218,13 +218,14 @@ function sample(p) {
 
 }
 function draw(p, first = false) {
-  const target=active.tool==='pen'?strokeCtx:ctx;
+  const translucent=active.tool==='pen' && active.opacity<100;
+  const target=translucent?strokeCtx:ctx;
   target.globalCompositeOperation=active.tool==='eraser'?'destination-out':'source-over';
   target.fillStyle=active.ink;target.strokeStyle=active.ink;target.lineWidth=active.size;target.lineCap='round';target.lineJoin='round';
   target.beginPath();
   if(first){target.arc(p.x,p.y,active.size/2,0,Math.PI*2);target.fill();}
   else{target.moveTo(active.last.x,active.last.y);target.lineTo(p.x,p.y);target.stroke();}
-  if(active.tool==='pen'){
+  if(translucent){
     ctx.putImageData(active.before,0,0);
     ctx.globalCompositeOperation='source-over';
     ctx.globalAlpha=active.opacity/100;
@@ -238,7 +239,7 @@ canvas.addEventListener('pointerdown', e => {
   e.preventDefault(); const p=point(e);
   if (tool==='picker' || e.altKey) {sample(p);return;}
   active={id:e.pointerId,before:snapshot(),last:p,tool,size:sizes[tool],ink,opacity:penOpacity};
-  if(tool==='pen')strokeCtx.clearRect(0,0,1024,1024);
+  if(tool==='pen' && active.opacity<100)strokeCtx.clearRect(0,0,1024,1024);
   canvas.setPointerCapture(e.pointerId); draw(p,true); historyButtons();
 });
 canvas.addEventListener('pointermove', e => {
