@@ -3,7 +3,7 @@
 const $ = id => document.getElementById(id);
 const canvas = $('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const roles = ['影', '影とベースの中間', 'ベース', 'ベースとハイライトの中間', 'ハイライト'];
+const roles = ['濃い影', '影', 'ベース', 'ハイライト', '明るいハイライト'];
 const stacks = [
   ['#714d51', '#b3726c', '#df9e87', '#f1c2a3', '#f9e3c4'],
   ['#304a49', '#507765', '#83a77c', '#b6c998', '#e1e7bd'],
@@ -11,32 +11,78 @@ const stacks = [
 ];
 const rampFields = [
   ['lightHue','ハイライトの色相移動',-30,30,-15,'°'],
-  ['highlight','ハイライトの明るさ',0,100,65,'%'],
+  ['highlight','ハイライトの明度',0,100,65,'%'],
   ['highlightSat','ハイライトの彩度',0,100,30,'%'],
   ['shadowHue','影の色相移動',-30,30,20,'°'],
-  ['shadowDepth','影の暗さ',0,100,45,'%'],
-  ['shadowSat','影の彩度',70,130,115,'%']
+  ['shadowDepth','影の明度',0,100,45,'%'],
+  ['shadowSat','影の彩度',0,100,45,'%']
 ];
-// Stored multipliers and depth retain their JSON meaning.
-const isSaturation = key => key==='shadowSat';
-const sliderValue = (key,value) => isSaturation(key)?value-100:key==='shadowDepth'?100-value:value;
-const rampValue = (key,value) => isSaturation(key)?value+100:key==='shadowDepth'?100-value:value;
-const sliderLabel = (key,value,unit) => (isSaturation(key) && value>0?'+':'')+value+unit;
+// Shadow depth retains its JSON meaning; saturation is absolute.
+
+const sliderValue = (key,value) => key==='shadowDepth'?100-value:value;
+const rampValue = (key,value) => key==='shadowDepth'?100-value:value;
+const sliderLabel = (key,value,unit) => value+unit;
 const newRamp = () => Object.fromEntries(rampFields.map(([key,,,,value])=>[key,value]));
 const ramps = stacks.map(newRamp);
 const baseColors = stacks.map(colors => colors[2]);
 const clamp = x => Math.max(0,Math.min(100,x));
-function regenerate(i) {
-  const [h,s,v]=hexToHsv(baseColors[i]), r=ramps[i];
-  const shadowV=v*(1-r.shadowDepth/100), lightV=v+(100-v)*r.highlight/100;
-  stacks[i]=[-1,-0.5,0,0.5,1].map(position=>{
-
-    const amount=Math.abs(position), shadow=position<0;
-    const hue=h+(shadow?r.shadowHue:r.lightHue)*amount;
-    const targetS=shadow?s*r.shadowSat/100:r.highlightSat;
-    const saturation=s+(targetS-s)*amount;
-    return hsvToHex(hue,clamp(saturation),v+((shadow?shadowV:lightV)-v)*amount);
+// Oklab transforms by Björn Ottosson: https://bottosson.github.io/posts/oklab/
+function hexToOklab(hex) {
+  const [r,g,b]=hex.match(/\w\w/g).map(value=>{
+    const c=parseInt(value,16)/255;
+    return c<=0.04045?c/12.92:((c+0.055)/1.055)**2.4;
   });
+  const l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b);
+  const m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b);
+  const s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
+  return [0.2104542553*l+0.7936177850*m-0.0040720468*s,
+    1.9779984951*l-2.4285922050*m+0.4505937099*s,
+    0.0259040371*l+0.7827717662*m-0.8086757660*s];
+}
+function oklabToLinearRgb([L,a,b]) {
+  const l=(L+0.3963377774*a+0.2158037573*b)**3;
+  const m=(L-0.1055613458*a-0.0638541728*b)**3;
+  const s=(L-0.0894841775*a-1.2914855480*b)**3;
+  return [4.0767416621*l-3.3077115913*m+0.2309699292*s,
+    -1.2684380046*l+2.6097574011*m-0.3413193965*s,
+    -0.0041960863*l-0.7034186147*m+1.7076147010*s];
+}
+function oklabToHex(lab) {
+  const inGamut=rgb=>rgb.every(c=>c>=-1e-7 && c<=1+1e-7);
+  let rgb=oklabToLinearRgb(lab);
+  if(!inGamut(rgb)){
+    // Reduce chroma at constant lightness/hue rather than clip RGB channels.
+    let low=0,high=1;
+    for(let i=0;i<24;i++){
+      const scale=(low+high)/2;
+      if(inGamut(oklabToLinearRgb([lab[0],lab[1]*scale,lab[2]*scale])))low=scale;
+      else high=scale;
+    }
+    rgb=oklabToLinearRgb([lab[0],lab[1]*low,lab[2]*low]);
+  }
+  return '#'+rgb.map(c=>{
+    c=Math.max(0,Math.min(1,c));
+    return Math.round(255*(c<=0.0031308?12.92*c:1.055*c**(1/2.4)-0.055)).toString(16).padStart(2,'0');
+  }).join('');
+}
+function oklabMidpoint(from,to) {
+  const a=hexToOklab(from),b=hexToOklab(to);
+  return oklabToHex(a.map((value,i)=>(value+b[i])/2));
+}
+function colorAtLightness(hue,saturation,lightness) {
+  // Use HSV only to choose the color direction, then set perceptual lightness.
+  const [L,a,b]=hexToOklab(hsvToHex(hue,saturation,100));
+  const scale=lightness/L;
+  return oklabToHex([lightness,a*scale,b*scale]);
+}
+function regenerate(i) {
+  const base=baseColors[i],[h]=hexToHsv(base),r=ramps[i];
+  const L=hexToOklab(base)[0];
+  const shadowL=L*(1-r.shadowDepth/100);
+  const highlightL=L+(1-L)*r.highlight/100;
+  const shadow=colorAtLightness(h+r.shadowHue,r.shadowSat,shadowL);
+  const highlight=colorAtLightness(h+r.lightHue,r.highlightSat,highlightL);
+  stacks[i]=[shadow,oklabMidpoint(shadow,base),base,oklabMidpoint(base,highlight),highlight];
 }
 stacks.forEach((_,i)=>regenerate(i));
 let selected = [0, 2], tool = 'pen', ink = stacks[0][2];
@@ -107,7 +153,7 @@ function renderStacks() {
   $('stacks').replaceChildren();
   stacks.forEach((colors, i) => {
     const row = document.createElement('div'); row.className = 'stack';
-    row.innerHTML = `<div class="stack-title"><span>SET ${String(i+1).padStart(2,'0')}</span><button class="remove" aria-label="色セット${i+1}を削除" ${stacks.length===1?'disabled':''}>×</button></div><div class="swatches"></div><div class="labels"><span>影</span><span>ベース</span><span>ハイライト</span></div>`;
+    row.innerHTML = `<div class="stack-title"><span>SET ${String(i+1).padStart(2,'0')}</span><button class="remove" aria-label="色セット${i+1}を削除" ${stacks.length===1?'disabled':''}>×</button></div><div class="swatches"></div><div class="labels"><span>濃い影</span><span>影</span><span>ベース</span><span>ハイライト</span><span>明るいハイライト</span></div>`;
     row.querySelector('.remove').onclick = () => {
       if (stacks.length===1) return;
       stacks.splice(i,1); ramps.splice(i,1); baseColors.splice(i,1);
@@ -159,58 +205,6 @@ for(const [key,label,min,max,value,unit] of rampFields){
   };
 }
 $('add').onclick=()=>{stacks.push([...stacks[selected[0]]]);ramps.push({...ramps[selected[0]]});baseColors.push(baseColors[selected[0]]);selectColor(stacks.length-1,2);};
-// Palette files contain editable sources, not canvas pixels.
-function serializePalette() {
-  return JSON.stringify({format:'iro-sketch-palette',version:2,sets:baseColors.map((base,i)=>({base,ramp:{...ramps[i]}}))},null,2);
-}
-function loadPalette(text) {
-  const data=JSON.parse(text);
-  if(!data || data.format!=='iro-sketch-palette' || ![1,2].includes(data.version) || !Array.isArray(data.sets) || data.sets.length<1 || data.sets.length>1000)
-    throw new Error('対応する色セットJSON（バージョン1・2、1〜1000セット）を選んでください。');
-  const parsed=data.sets.map(set=>{
-    if(!set || typeof set.base!=='string' || !/^#[0-9a-f]{6}$/i.test(set.base) || !set.ramp || typeof set.ramp!=='object')
-      throw new Error('ベース色または調整設定が不正です。');
-    const ramp={};
-    for(const [key,,min,max] of rampFields){
-            let value=set.ramp[key];
-      if(data.version===1 && key==='highlightSat'){
-        if(!Number.isInteger(value) || value<70 || value>130) throw new Error('調整設定の値が範囲外です。');
-        value=Math.round(clamp(hexToHsv(set.base)[1]*value/100));
-      }
-      if(!Number.isInteger(value) || value<min || value>max) throw new Error('調整設定の値が範囲外です。');
-      ramp[key]=value;
-    }
-    return {base:set.base.toLowerCase(),ramp};
-  });
-  baseColors.splice(0,baseColors.length,...parsed.map(set=>set.base));
-  ramps.splice(0,ramps.length,...parsed.map(set=>set.ramp));
-  stacks.splice(0,stacks.length,...parsed.map(set=>Array(5).fill(set.base)));
-  stacks.forEach((_,i)=>regenerate(i));
-  selectColor(0,2);
-}
-$('savePalette').onclick=()=>{
-  const blob=new Blob([serializePalette()+'\n'],{type:'application/json'});
-  const url=URL.createObjectURL(blob),link=document.createElement('a');
-  link.href=url;link.download='iro-sketch-colors.json';link.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  $('paletteStatus').textContent='色セットの保存ファイルを作成しました。';
-};
-$('loadPalette').onclick=()=>$('paletteFile').click();
-let paletteLoadPending=false;
-$('paletteFile').onchange=async e=>{
-  const input=e.target,file=input.files[0];
-  if(!file || paletteLoadPending) return;
-  paletteLoadPending=true;$('loadPalette').disabled=true;
-  try {
-    if(file.size>1024*1024) throw new Error('1MB以下のJSONファイルを選んでください。');
-    loadPalette(await file.text());
-    $('paletteStatus').textContent=stacks.length+'セットを読み込みました。';
-  } catch(error) {
-    $('paletteStatus').textContent='読み込めませんでした。'+(error instanceof SyntaxError?'JSONの形式を確認してください。':error.message);
-  } finally {
-    input.value='';paletteLoadPending=false;$('loadPalette').disabled=false;
-  }
-};
 document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
 for (const name of ['pen','eraser']) $(name+'Size').oninput = e => {
   sizes[name]=+e.target.value; $(name+'SizeValue').textContent=sizes[name]+' px';

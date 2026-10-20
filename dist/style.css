@@ -9,7 +9,6 @@ aside{background:#222222;border:1px solid #3b3b3b;border-radius:5px;min-height:0
 
 .palette-panel{overflow:hidden}.palette{flex:0 0 auto;max-height:50%;min-height:0;display:flex;flex-direction:column;overflow:hidden}.palette h2,.palette .add{flex-shrink:0}#stacks{overflow:auto;min-height:0;padding:3px}.editor{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain}.ramp-group{border-top:1px solid #3b3b3b;margin-top:20px;padding-top:12px}.ramp-group input[type=range]{appearance:auto;height:auto}.size+.size{margin-top:30px}.viewport{overflow:scroll;scrollbar-gutter:stable}canvas{max-width:none;height:auto;margin-inline:auto}
 
-.palette-files{padding:14px 14px 0;flex-shrink:0}.palette-actions{display:flex;gap:8px}.palette-actions button{flex:1;font-size:11px;padding:8px 4px}#paletteStatus{font-size:10px;line-height:1.5;color:#b8b8b8;margin:8px 0 0;overflow-wrap:anywhere}
 
 .editor .apply-all{display:flex;align-items:flex-start;gap:7px;line-height:1.6;margin:20px 0 6px}.apply-all input{margin:3px 0 0;flex-shrink:0;accent-color:#bcbcbc}
 
