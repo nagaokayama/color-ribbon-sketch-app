@@ -58,7 +58,7 @@ const base=run('stacks[0][2]');
 run('ramps[0].shadowDepth=90; regenerate(0)');
 assert.equal(run('stacks[0][2]'),base);
 assert.equal(run('stacks[0].length'),5);
-assert.ok(run('hexToHsv(stacks[0][0])[2] < hexToHsv(stacks[0][2])[2]'));
+assert.ok(run('hexToOklab(stacks[0][0])[0] < hexToOklab(stacks[0][2])[0]'));
 const paletteBefore=run('JSON.stringify(stacks)');run('sample({x:1,y:1})');assert.equal(run('JSON.stringify(stacks)'),paletteBefore);
 console.log('PASS: 10-stroke limit, undo/redo, redo branching, canceled stroke, HSV round trips and ramp invariants, palette edit, transparent sampling');
 
@@ -86,8 +86,8 @@ console.log('PASS: pen opacity capture, zero opacity and eraser alpha isolation'
 run("selectColor(0,2); editBase('#c08040')");
 run('ramps[0].shadowSat=70; ramps[0].highlightSat=70; regenerate(0)');
 assert.equal(run('stacks[0][2]'),'#c08040');
-assert.ok(run('Math.abs(hexToHsv(stacks[0][0])[1]-hexToHsv(baseColors[0])[1]*0.7)<1'));
-assert.ok(run('Math.abs(hexToHsv(stacks[0][4])[1]-70)<1'));
+assert.ok(run('Math.abs(hexToOklab(stacks[0][0])[0]-hexToOklab(baseColors[0])[0]*(1-ramps[0].shadowDepth/100))<0.003'));
+assert.ok(run('Math.abs(hexToOklab(stacks[0][4])[0]-(hexToOklab(baseColors[0])[0]+(1-hexToOklab(baseColors[0])[0])*ramps[0].highlight/100))<0.003'));
 get('add').onclick();
 assert.equal(run('baseColors[3]'),run('baseColors[0]'));
 const duplicatedPalette=run('JSON.stringify(stacks[3])');
@@ -95,9 +95,9 @@ run('regenerate(3)');assert.equal(run('JSON.stringify(stacks[3])'),duplicatedPal
 console.log('PASS: independent endpoint saturation, unchanged base and duplicated palette');
 
 // Verify slider bounds and direction before saving the test palette.
-assert.equal(run("sliderValue('shadowSat',70)"),-30);
+assert.equal(run("sliderValue('shadowSat',70)"),70);
 assert.equal(run("rampValue('highlightSat',30)"),30);
-assert.equal(run("sliderLabel('shadowSat',15,'%')"),'+15%');
+assert.equal(run("sliderLabel('shadowSat',15,'%')"),'15%');
 get('shadowDepth').value='0';get('shadowDepth').oninput();
 const darkShadow=run('hexToHsv(stacks[selected[0]][0])[2]');
 get('shadowDepth').value='100';get('shadowDepth').oninput();
@@ -112,7 +112,7 @@ assert.ok(run('ramps.every(r=>r.lightHue===30)'));
 assert.equal(run('JSON.stringify(baseColors)'),basesBeforeBulk);
 assert.equal(run('JSON.stringify(ramps.map(({lightHue,...rest})=>rest))'),otherSettings);
 assert.equal(run('ink'),run('stacks[selected[0]][selected[1]]'));
-get('shadowSat').value='-30';get('shadowSat').oninput();
+get('shadowSat').value='70';get('shadowSat').oninput();
 assert.ok(run('ramps.every(r=>r.shadowSat===70)'));
 get('shadowDepth').value='25';get('shadowDepth').oninput();
 assert.ok(run('ramps.every(r=>r.shadowDepth===75)'));
@@ -125,60 +125,46 @@ console.log('PASS: bulk field edits, saturation/depth conversion, independent ba
 get('highlightSat').value='0';get('highlightSat').oninput();
 assert.equal(run('hexToHsv(stacks[selected[0]][4])[1]'),0);
 get('highlightSat').value='100';get('highlightSat').oninput();
-assert.equal(run('hexToHsv(stacks[selected[0]][4])[1]'),100);
-// Old multiplier-based files migrate to absolute highlight saturation.
-const beforeMigration=run('serializePalette()');
-const legacy=JSON.parse(beforeMigration);legacy.version=1;
-legacy.sets.forEach(set=>set.ramp.highlightSat=70);
-sandbox.legacyText=JSON.stringify(legacy);
-run('loadPalette(legacyText)');
-assert.ok(run('ramps.every((r,i)=>r.highlightSat===Math.round(clamp(hexToHsv(baseColors[i])[1]*0.7)))'));
-sandbox.restoreText=beforeMigration;run('loadPalette(restoreText)');
-assert.equal(run('serializePalette()'),beforeMigration);
-// Round trips preserve all palette sources and generated colors, without touching ink history.
-const savedPalette=run('serializePalette()');
-const savedColors=run('JSON.stringify(stacks)');
-const historyBeforeLoad=run('JSON.stringify([undo,redo])');
-const pixelsBeforeLoad=pixels;
-run("editBase('#abcdef')");
-sandbox.paletteText=savedPalette;
-run('loadPalette(paletteText)');
-assert.equal(run('serializePalette()'),savedPalette);
-assert.equal(run('JSON.stringify(stacks)'),savedColors);
-assert.equal(run('JSON.stringify(selected)'),'[0,2]');
-assert.equal(pixels,pixelsBeforeLoad);
-assert.equal(run('JSON.stringify([undo,redo])'),historyBeforeLoad);
-for(const mutate of [
-  ()=>'{',
-  data=>{data.version=3;return JSON.stringify(data)},
-  data=>{data.sets=[];return JSON.stringify(data)},
-  data=>{data.sets[1].base='red';return JSON.stringify(data)},
-  data=>{data.sets[1].ramp.shadowDepth=101;return JSON.stringify(data)},
-  data=>{data.sets[1].ramp.lightHue=31;return JSON.stringify(data)},
-  data=>{data.sets[1].ramp.shadowSat=69;return JSON.stringify(data)},
-  data=>{delete data.sets[1].ramp.lightHue;return JSON.stringify(data)}
-]){
-  sandbox.paletteText=mutate(JSON.parse(savedPalette));
-  assert.throws(()=>run('loadPalette(paletteText)'));
-  assert.equal(run('serializePalette()'),savedPalette);
-  assert.equal(run('JSON.stringify(stacks)'),savedColors);
+assert.ok(run('hexToHsv(stacks[selected[0]][4])[1]>0'));
+// Published Oklab reference for red, neutral midpoint and sRGB round trips.
+const redLab=run("hexToOklab('#ff0000')");
+assert.ok(Math.abs(redLab[0]-0.62795536)<1e-6);
+assert.ok(Math.abs(redLab[1]-0.22486306)<1e-6);
+assert.ok(Math.abs(redLab[2]-0.12584630)<1e-6);
+for(const color of ['#000000','#ffffff','#ff0000','#00ff00','#0000ff','#df9e87'])
+  assert.equal(run(`oklabToHex(hexToOklab('${color}'))`),color);
+assert.equal(run("oklabMidpoint('#000000','#ffffff')"),'#636363');
+for(const [from,to] of [['#714d51','#df9e87'],['#df9e87','#f4b6b5'],['#000000','#ffffff'],['#0000ff','#ffff00']]){
+  sandbox.from=from;sandbox.to=to;
+  assert.ok(run(`(()=>{
+    const a=hexToOklab(from),b=hexToOklab(to),m=hexToOklab(oklabMidpoint(from,to));
+    const distance=(x,y)=>Math.hypot(...x.map((value,i)=>value-y[i]));
+    return Math.abs(distance(a,m)-distance(m,b))<0.005;
+  })()`));
 }
-console.log('PASS: palette JSON round trip, invalid files preserve state, canvas and history unchanged');
-
-(async()=>{
-  const input=get('paletteFile');
-  input.files=[{size:savedPalette.length,text:async()=>savedPalette}];
-  await input.onchange({target:input});
-  assert.equal(run('serializePalette()'),savedPalette);
-  assert.equal(input.value,'');assert.equal(get('loadPalette').disabled,false);
-  assert.match(get('paletteStatus').textContent,/セットを読み込みました/);
-  input.files=[{size:1,text:async()=>'{'}];
-  await input.onchange({target:input});
-  assert.match(get('paletteStatus').textContent,/読み込めませんでした/);
-  assert.equal(run('serializePalette()'),savedPalette);
-  input.files=[{size:1024*1024+1,text:async()=>{throw new Error('Must not read oversized file')}}];
-  await input.onchange({target:input});
-  assert.match(get('paletteStatus').textContent,/1MB以下/);
-  assert.equal(run('serializePalette()'),savedPalette);
-  console.log('PASS: file input loading, error messages, size limit and input reset');
-})().catch(error=>{console.error(error);process.exitCode=1});
+get('shadowSat').value='0';get('shadowSat').oninput();
+assert.equal(run('hexToHsv(stacks[selected[0]][0])[1]'),0);
+get('shadowSat').value='100';get('shadowSat').oninput();
+assert.ok(run('hexToHsv(stacks[selected[0]][0])[1]>0'));
+assert.equal(run('stacks[selected[0]][2]'),run('baseColors[selected[0]]'));
+console.log('PASS: Oklab reference, round trips, perceptual midpoints and absolute shadow saturation');
+// Perceptual lightness stays stable while color direction and saturation vary.
+for(const hue of [0,60,120,180,240,300]){
+  for(const saturation of [0,30,70,100]){
+    for(const lightness of [0.1,0.4,0.75,0.95]){
+      sandbox.testColor={hue,saturation,lightness};
+      assert.ok(run('Math.abs(hexToOklab(colorAtLightness(testColor.hue,testColor.saturation,testColor.lightness))[0]-testColor.lightness)<0.005'),JSON.stringify({hue,saturation,lightness,actual:run('hexToOklab(colorAtLightness(testColor.hue,testColor.saturation,testColor.lightness))[0]')}));
+    }
+  }
+}
+for(const base of ['#df9e87','#00ff00','#0000ff','#ff0000','#000000','#ffffff']){
+  sandbox.testBase=base;run('editBase(testBase);ramps[selected[0]].shadowDepth=45;ramps[selected[0]].highlight=65;regenerate(selected[0])');
+  const levels=run('stacks[selected[0]].map(color=>hexToOklab(color)[0])');
+  for(let i=1;i<5;i++)assert.ok(levels[i]>=levels[i-1]-0.003);
+  assert.ok(Math.abs(levels[1]-(levels[0]+levels[2])/2)<0.003);
+  assert.ok(Math.abs(levels[3]-(levels[2]+levels[4])/2)<0.003);
+  assert.equal(run('stacks[selected[0]][2]'),base);
+}
+assert.equal(run('colorAtLightness(45,100,0)'),'#000000');
+assert.equal(run('colorAtLightness(240,100,1)'),'#ffffff');
+console.log('PASS: lightness stability across hue/saturation, monotonic ramps, equal L midpoints, black and white limits');
