@@ -1,0 +1,14 @@
+# Generated deployment archives and local dependencies
+*.tar.gz
+*.zip
+node_modules/
+.sites-runtime/
+.sites-checkout*/
+
+# Local editor and operating system files
+.DS_Store
+Thumbs.db
+*.log
+
+# Local OpenAI hosting configuration
+.openai/
