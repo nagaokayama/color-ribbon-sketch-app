@@ -13,6 +13,20 @@
 body {
   margin: 0;
 }
+/* 描画・UI操作中の選択を防ぎ、名前の入力欄では編集を許可する。 */
+main,
+.set-menu {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input:not([type]),
+input[type='text'],
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
 button,
 input {
   font: inherit;
