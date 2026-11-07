@@ -8,6 +8,23 @@
     <label class="size">ペンのサイズ <output id="penSizeValue">15 px</output><input id="penSize" type="range" min="0" max="7" step="1" value="3" aria-valuetext="15 px"></label>
     <label class="size">ペンの不透明度 <output id="penOpacityValue">100%</output><input id="penOpacity" type="range" min="0" max="100" value="100"></label>
     <label class="size">消しゴムのサイズ <output id="eraserSizeValue">15 px</output><input id="eraserSize" type="range" min="0" max="7" step="1" value="3" aria-valuetext="15 px"></label>
+    <section class="layer-panel" aria-labelledby="layersHeading">
+      <h2 id="layersHeading">レイヤー</h2>
+      <div class="layer-list" role="group" aria-label="描画するレイヤー">
+        <div class="layer-row">
+          <button id="layer0" class="layer-button" aria-pressed="true"><canvas id="layerPreview0" class="layer-preview" width="32" height="32" aria-hidden="true"></canvas><span>最前面</span></button>
+          <button id="layerVisibility0" class="layer-visibility" aria-label="最前面の表示" aria-pressed="true" title="最前面を非表示にする"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg></button>
+        </div>
+        <div class="layer-row">
+          <button id="layer1" class="layer-button" aria-pressed="false"><canvas id="layerPreview1" class="layer-preview" width="32" height="32" aria-hidden="true"></canvas><span>中間</span></button>
+          <button id="layerVisibility1" class="layer-visibility" aria-label="中間の表示" aria-pressed="true" title="中間を非表示にする"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg></button>
+        </div>
+        <div class="layer-row">
+          <button id="layer2" class="layer-button" aria-pressed="false"><canvas id="layerPreview2" class="layer-preview" width="32" height="32" aria-hidden="true"></canvas><span>背面</span></button>
+          <button id="layerVisibility2" class="layer-visibility" aria-label="背面の表示" aria-pressed="true" title="背面を非表示にする"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg></button>
+        </div>
+      </div>
+    </section>
     <section class="shortcuts" aria-label="キーボードショートカット">
       <h2>ショートカット</h2>
       <dl><dt>B</dt><dd>ペン</dd><dt>E</dt><dd>消しゴム</dd><dt>I</dt><dd>スポイト</dd></dl>
