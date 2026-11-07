@@ -35,6 +35,24 @@ vm.runInContext(fs.readFileSync('dist/app.js','utf8'),sandbox);
 function run(s){return vm.runInContext(s,sandbox)}
 function event(id){return {pointerId:id,button:0,clientX:20,clientY:20,preventDefault(){}}}
 const c=get('canvas');
+// Startup and selection preserve the exact preset values until a set is edited.
+const presets=[
+  ['#111725','#1b2030','#2b2d3b','#464a60','#70758c'],
+  ['#b97e82','#dda5a3','#f3c7b8','#ffdecb','#fff0db'],
+  ['#49333b','#654238','#875a43','#b78360','#d9b18a'],
+  ['#335c8d','#4a81ae','#70acd1','#9bcfe4','#d1e8ed'],
+  ['#9b527d','#c67397','#e99eb3','#f8c2c7','#ffe2db'],
+];
+assert.deepEqual(JSON.parse(run('JSON.stringify(stacks)')),presets);
+assert.deepEqual(JSON.parse(run('JSON.stringify(setNames)')),['黒','肌','茶色','青','ピンク']);
+assert.equal(run('ink'),'#2b2d3b');
+for(let i=0;i<5;i++)for(let j=0;j<5;j++){
+  run(`selectColor(${i},${j})`);
+  assert.equal(run('ink'),presets[i][j]);
+}
+assert.deepEqual(JSON.parse(run('JSON.stringify(stacks)')),presets);
+run('selectColor(0,2)');
+console.log('PASS: exact initial presets, names, initial ink and color selection');
 // Fit uses both dimensions; zoom changes only the display and keeps bitmap/history intact.
 assert.equal(run('zoom'),0.5);
 const zoomPixels=pixels;
@@ -127,9 +145,9 @@ assert.equal(run('stacks[0][2]'),'#c08040');
 assert.ok(run('Math.abs(hexToOklab(stacks[0][0])[0]-hexToOklab(baseColors[0])[0]*(1-ramps[0].shadowDepth/100))<0.003'));
 assert.ok(run('Math.abs(hexToOklab(stacks[0][4])[0]-(hexToOklab(baseColors[0])[0]+(1-hexToOklab(baseColors[0])[0])*ramps[0].highlight/100))<0.003'));
 get('add').onclick();
-assert.equal(run('baseColors[3]'),run('baseColors[0]'));
-const duplicatedPalette=run('JSON.stringify(stacks[3])');
-run('regenerate(3)');assert.equal(run('JSON.stringify(stacks[3])'),duplicatedPalette);
+assert.equal(run('baseColors.at(-1)'),run('baseColors[0]'));
+const duplicatedPalette=run('JSON.stringify(stacks.at(-1))');
+run('regenerate(stacks.length-1)');assert.equal(run('JSON.stringify(stacks.at(-1))'),duplicatedPalette);
 console.log('PASS: independent endpoint saturation, unchanged base and duplicated palette');
 
 // Verify slider bounds and direction before saving the test palette.

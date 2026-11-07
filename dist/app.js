@@ -59,9 +59,11 @@ layers.forEach((_, i) => {
 // カラーセットの並びと、影・ハイライトの調整項目。
 const roles = ['濃い影', '影', 'ベース', 'ハイライト', '明るいハイライト'];
 const stacks = [
-  ['#714d51', '#b3726c', '#df9e87', '#f1c2a3', '#f9e3c4'],
-  ['#304a49', '#507765', '#83a77c', '#b6c998', '#e1e7bd'],
-  ['#39405c', '#626e96', '#929fc5', '#bec9e2', '#e8eaf3'],
+  ['#111725', '#1b2030', '#2b2d3b', '#464a60', '#70758c'],
+  ['#b97e82', '#dda5a3', '#f3c7b8', '#ffdecb', '#fff0db'],
+  ['#49333b', '#654238', '#875a43', '#b78360', '#d9b18a'],
+  ['#335c8d', '#4a81ae', '#70acd1', '#9bcfe4', '#d1e8ed'],
+  ['#9b527d', '#c67397', '#e99eb3', '#f8c2c7', '#ffe2db'],
 ];
 const rampFields = [
   ['lightHue', 'ハイライトの色相移動', -30, 30, -15, '°'],
@@ -81,7 +83,7 @@ const newRamp = () =>
   Object.fromEntries(rampFields.map(([key, , , , value]) => [key, value]));
 const ramps = stacks.map(newRamp);
 const baseColors = stacks.map((colors) => colors[2]);
-const setNames = stacks.map((_, i) => 'SET ' + String(i + 1).padStart(2, '0'));
+const setNames = ['黒', '肌', '茶色', '青', 'ピンク'];
 let nextSetNumber = stacks.length + 1;
 let menuSet = null;
 
@@ -243,7 +245,7 @@ function regenerate(i) {
     highlight,
   ];
 }
-stacks.forEach((_, i) => regenerate(i));
+// 初期表示はプリセットの色を使い、色の編集時から自動生成する。
 
 // 選択中のセット・色、描画ツール、ストロークの状態。
 let selected = [0, 2],
