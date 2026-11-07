@@ -503,6 +503,13 @@ body {
   font-size: 16px;
   font-weight: 400;
 }
+.site-logo {
+  display: block;
+  width: 136px;
+  height: 21px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
 .site-heading p {
   margin: 0;
   font-size: 11px;
