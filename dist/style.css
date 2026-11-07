@@ -14,6 +14,7 @@ body {
   margin: 0;
 }
 /* 描画・UI操作中の選択を防ぎ、名前の入力欄では編集を許可する。 */
+.site-heading,
 main,
 .set-menu {
   -webkit-user-select: none;
