@@ -37,15 +37,15 @@ function event(id){return {pointerId:id,button:0,clientX:20,clientY:20,preventDe
 const c=get('canvas');
 // Startup and selection preserve the exact preset values until a set is edited.
 const presets=[
-  ['#111725','#1b2030','#2b2d3b','#464a60','#70758c'],
-  ['#b97e82','#dda5a3','#f3c7b8','#ffdecb','#fff0db'],
+  ['#090f1d','#1b202d','#4f5269','#a8b2c8','#e5e7ef'],
+  ['#b97e82','#f0a7a4','#f3c7b8','#ffdecb','#fff5ef'],
   ['#49333b','#654238','#875a43','#b78360','#d9b18a'],
   ['#335c8d','#4a81ae','#70acd1','#9bcfe4','#d1e8ed'],
   ['#9b527d','#c67397','#e99eb3','#f8c2c7','#ffe2db'],
 ];
 assert.deepEqual(JSON.parse(run('JSON.stringify(stacks)')),presets);
 assert.deepEqual(JSON.parse(run('JSON.stringify(setNames)')),['黒','肌','茶色','青','ピンク']);
-assert.equal(run('ink'),'#2b2d3b');
+assert.equal(run('ink'),'#4f5269');
 for(let i=0;i<5;i++)for(let j=0;j<5;j++){
   run(`selectColor(${i},${j})`);
   assert.equal(run('ink'),presets[i][j]);
