@@ -251,8 +251,7 @@ function regenerate(i) {
 let selected = [0, 2],
   tool = 'pen',
   ink = stacks[0][2];
-// スライダーの位置0〜7を、8段階のピクセルサイズに対応させる。
-const sizeSteps = [1, 4, 8, 15, 20, 60, 100, 300];
+// スライダーの値を、そのままピクセルサイズとして使う。
 const sizes = { pen: 15, eraser: 15 };
 let penOpacity = 100;
 // 半透明の線は別キャンバスに蓄積し、同じストローク内で濃さが増すのを防ぐ。
@@ -563,7 +562,7 @@ document
   .forEach((b) => (b.onclick = () => setTool(b.dataset.tool)));
 for (const name of ['pen', 'eraser'])
   $(name + 'Size').oninput = (e) => {
-    sizes[name] = sizeSteps[+e.target.value];
+    sizes[name] = +e.target.value;
     $(name + 'SizeValue').textContent = sizes[name] + ' px';
     $(name + 'Size').setAttribute('aria-valuetext', sizes[name] + ' px');
   };
