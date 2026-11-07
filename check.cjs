@@ -115,10 +115,10 @@ for(let size=1;size<=200;size++){
 console.log('PASS: scaled canvas coordinates and independent 1–200px pen/eraser sizes');
 
 // Opacity is fixed for each pen stroke, composited once, and reset for erasing.
-get('penOpacity').oninput({target:{value:'35'}});
+run('penOpacity=35');
 run("setTool('pen')");c.handlers.pointerdown(event(80));
 assert.equal(run('active.opacity'),35);assert.equal(context.globalAlpha,1);
-get('penOpacity').oninput({target:{value:'0'}});
+run('penOpacity=0');
 assert.equal(run('active.opacity'),35);
 c.handlers.pointerup(event(80));
 c.handlers.pointerdown(event(81));assert.equal(run('active.opacity'),0);c.handlers.pointerup(event(81));
@@ -127,20 +127,20 @@ assert.equal(context.globalCompositeOperation,'destination-out');assert.equal(co
 c.handlers.pointerup(event(82));
 console.log('PASS: pen opacity capture, zero opacity and eraser alpha isolation');
 // Opaque strokes bypass compositing; translucent strokes keep the existing path.
-run("setTool('pen')");get('penOpacity').oninput({target:{value:'100'}});
+run("setTool('pen'); penOpacity=100");
 const opaqueRestores=restoreCount,opaqueComposites=compositeCount;
 c.handlers.pointerdown(event(83));
 c.handlers.pointermove({...event(83),clientX:40,clientY:40});
 c.handlers.pointerup({...event(83),clientX:50,clientY:50});
 assert.equal(restoreCount,opaqueRestores);assert.equal(compositeCount,opaqueComposites);
-get('penOpacity').oninput({target:{value:'50'}});
+run('penOpacity=50');
 const translucentRestores=restoreCount,translucentComposites=compositeCount;
 c.handlers.pointerdown(event(84));
 c.handlers.pointermove({...event(84),clientX:40,clientY:40});
 c.handlers.pointerup({...event(84),clientX:50,clientY:50});
 assert.equal(restoreCount-translucentRestores,3);assert.equal(compositeCount-translucentComposites,3);
 const opaqueBeforeCancel=pixels;
-get('penOpacity').oninput({target:{value:'100'}});
+run('penOpacity=100');
 c.handlers.pointerdown(event(85));c.handlers.pointercancel(event(85));
 assert.equal(pixels,opaqueBeforeCancel);
 console.log('PASS: opaque pen bypasses restore/composite, translucent path retained, opaque cancel restored');

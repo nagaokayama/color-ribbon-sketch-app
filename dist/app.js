@@ -59,8 +59,8 @@ layers.forEach((_, i) => {
 // カラーセットの並びと、影・ハイライトの調整項目。
 const roles = ['濃い影', '影', 'ベース', 'ハイライト', '明るいハイライト'];
 const stacks = [
-  ['#111725', '#1b2030', '#2b2d3b', '#464a60', '#70758c'],
-  ['#b97e82', '#dda5a3', '#f3c7b8', '#ffdecb', '#fff0db'],
+  ['#090f1d', '#1b202d', '#4f5269', '#a8b2c8', '#e5e7ef'],
+  ['#b97e82', '#f0a7a4', '#f3c7b8', '#ffdecb', '#fff5ef'],
   ['#49333b', '#654238', '#875a43', '#b78360', '#d9b18a'],
   ['#335c8d', '#4a81ae', '#70acd1', '#9bcfe4', '#d1e8ed'],
   ['#9b527d', '#c67397', '#e99eb3', '#f8c2c7', '#ffe2db'],
@@ -258,10 +258,6 @@ let penOpacity = 100;
 const strokeCanvas = document.createElement('canvas');
 strokeCanvas.width = strokeCanvas.height = 1024;
 const strokeCtx = strokeCanvas.getContext('2d');
-$('penOpacity').oninput = (e) => {
-  penOpacity = +e.target.value;
-  $('penOpacityValue').textContent = penOpacity + '%';
-};
 let active = null;
 const undo = [],
   redo = [];
