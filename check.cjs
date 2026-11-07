@@ -9,13 +9,27 @@ class Element {
   addEventListener(k,f){this.handlers[k]=f}
 }
 let pixels=0,restoreCount=0,compositeCount=0;
-const strokeContext={clearRect(){},beginPath(){},arc(){},fill(){},stroke(){},moveTo(){},lineTo(){}};
+let exportedImage,exportedMime,exportedBackground;
+const strokeContext={clearRect(){},beginPath(){},arc(){},fill(){},stroke(){},moveTo(){},lineTo(){},fillRect(){exportedBackground=this.fillStyle},drawImage(image){exportedImage=image}};
 const context={getImageData:()=>({value:pixels,data:[0,0,0,0]}),putImageData(d){restoreCount++;pixels=d.value},drawImage(){compositeCount++;pixels++},beginPath(){},arc(){},fill(){pixels++},stroke(){pixels++},moveTo(){},lineTo(){}};
+let displayedLayers=[],sampledColor=[0,0,0,0];
+const displayContext={clearRect(){displayedLayers=[]},drawImage(image){displayedLayers.push(image)},getImageData:()=>({data:sampledColor})};
+const otherContexts=Array.from({length:2},()=>({
+  value:0,getImageData(){return {value:this.value,data:[0,0,0,0]}},
+  putImageData(image){this.value=image.value},drawImage(){this.value++},
+  beginPath(){},arc(){},fill(){this.value++},stroke(){this.value++},moveTo(){},lineTo(){}
+}));
+let createdCanvases=0;
 const elements=new Map();
 const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id)};
-Object.assign(get('canvas'),{getContext:()=>context,width:1024,height:1024,getBoundingClientRect:()=>({left:0,top:0,width:512,height:512}),setPointerCapture(){},hasPointerCapture:()=>false});
+Object.assign(get('canvas'),{getContext:()=>displayContext,width:1024,height:1024,getBoundingClientRect:()=>({left:0,top:0,width:512,height:512}),setPointerCapture(){},hasPointerCapture:()=>false});
+for(let i=0;i<3;i++)Object.assign(get('layerPreview'+i),{width:32,height:32,getContext:()=>({clearRect(){},drawImage(){}})});
 Object.assign(get('viewport'),{clientWidth:544,clientHeight:800,scrollLeft:0,scrollTop:0});
-const sandbox={ResizeObserver:class {observe(){}},document:{getElementById:get,querySelectorAll:()=>[],createElement:tag=>tag==='canvas'?Object.assign(new Element(),{getContext:()=>strokeContext}):new Element(),addEventListener(){}},setTimeout,URL,console};
+const sandbox={ResizeObserver:class {observe(){}},document:{getElementById:get,querySelectorAll:()=>[],createElement:tag=>{
+  if(tag!=='canvas')return new Element();
+  const drawingContext=[context,...otherContexts,strokeContext][createdCanvases++] || strokeContext;
+  return Object.assign(new Element(),{getContext:()=>drawingContext,toBlob(callback,mime){exportedMime=mime}});
+},addEventListener(){}},setTimeout,URL,console};
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('dist/app.js','utf8'),sandbox);
 function run(s){return vm.runInContext(s,sandbox)}
@@ -215,3 +229,110 @@ assert.equal(run('stacks.length'),1);
 assert.equal(run('setNames.length'),1);
 assert.equal(run('baseColors.length'),1);assert.equal(run('ramps.length'),1);
 console.log('PASS: rename validation, set/name alignment, selection preservation, unique new names and final-set protection');
+
+// Layer switches preserve independent images. History follows the edited layer,
+// even after selecting another layer, and cancellation changes no other layer.
+run("setTool('pen'); penOpacity=100; selectLayer(0)");
+const frontPixels=pixels;
+get('layer2').onclick();
+assert.equal(run('selectedLayer'),2);
+c.handlers.pointerdown(event(90));
+get('layer1').onclick();
+assert.equal(run('selectedLayer'),2);
+assert.equal(get('layer0').disabled,true);
+c.handlers.pointerup(event(90));
+assert.equal(pixels,frontPixels);
+const backPixels=otherContexts[1].value;
+assert.ok(backPixels>0);
+assert.equal(get('layer0').disabled,false);
+get('layer1').onclick();
+c.handlers.pointerdown(event(91));c.handlers.pointerup(event(91));
+const middlePixels=otherContexts[0].value;
+assert.ok(middlePixels>0);
+get('layer0').onclick();
+get('undo').onclick();
+assert.equal(run('selectedLayer'),1);
+assert.equal(otherContexts[0].value,0);
+assert.equal(otherContexts[1].value,backPixels);
+assert.equal(pixels,frontPixels);
+get('undo').onclick();
+assert.equal(run('selectedLayer'),2);
+assert.equal(otherContexts[1].value,0);
+get('redo').onclick();get('redo').onclick();
+assert.equal(otherContexts[0].value,middlePixels);
+assert.equal(otherContexts[1].value,backPixels);
+run("selectLayer(2); setTool('eraser')");
+c.handlers.pointerdown(event(92));
+assert.equal(otherContexts[1].globalCompositeOperation,'destination-out');
+c.handlers.pointercancel(event(92));
+assert.equal(otherContexts[1].value,backPixels);
+assert.equal(otherContexts[0].value,middlePixels);
+assert.equal(pixels,frontPixels);
+run('selectLayer(-1); selectLayer(3); selectLayer(0.5)');
+assert.equal(run('selectedLayer'),2);
+console.log('PASS: independent layers, stroke selection lock, cross-layer undo/redo, cancellation and eraser target');
+
+// Composite back-to-front regardless of the selected layer. Sampling reads the
+// composite, and PNG export places that same image onto the white background.
+assert.equal(displayedLayers.length,3);
+for(let i=0;i<3;i++)assert.equal(displayedLayers[i],run(`layers[${2-i}].image`));
+const historyBeforeSample=run('undo.length');
+sampledColor=[200,100,50,128];
+run('selectLayer(1); sample({x:20,y:20})');
+assert.equal(run('ink'),'#e3b198');
+assert.equal(run('selectedLayer'),1);
+assert.equal(run('undo.length'),historyBeforeSample);
+sampledColor=[0,0,0,0];
+run('sample({x:20,y:20})');assert.equal(run('ink'),'#ffffff');
+get('export').onclick();
+assert.equal(exportedImage,c);
+assert.equal(exportedMime,'image/png');
+assert.equal(exportedBackground,'#fff');
+console.log('PASS: layer compositing order, merged-color sampling and white-background PNG export');
+
+// Visibility affects compositing, never the layer image or drawing history.
+const beforeVisibility = run('JSON.stringify(layers.map(layer => layer.context.getImageData(0,0,1024,1024).value))');
+const undoBeforeVisibility = run('undo.length');
+const redoBeforeVisibility = run('redo.length');
+get('layerVisibility1').onclick();
+assert.equal(run('layers[1].visible'),false);
+assert.equal(run('selectedLayer'),1);
+assert.deepEqual(displayedLayers,[run('layers[2].image'),run('layers[0].image')]);
+run("setTool('pen')");
+c.handlers.pointerdown(event(100));
+assert.equal(run('active'),null);
+run("setTool('eraser')");
+c.handlers.pointerdown(event(101));
+assert.equal(run('active'),null);
+sampledColor=[12,34,56,255];
+run("setTool('picker')");
+c.handlers.pointerdown(event(102));
+assert.equal(run('ink'),'#0c2238');
+sampledColor=[0,0,0,0];
+get('layerVisibility0').onclick();get('layerVisibility2').onclick();
+assert.equal(displayedLayers.length,0);
+get('export').onclick();
+assert.equal(exportedImage,c);
+assert.equal(exportedBackground,'#fff');
+assert.equal(run('JSON.stringify(layers.map(layer => layer.context.getImageData(0,0,1024,1024).value))'),beforeVisibility);
+assert.equal(run('undo.length'),undoBeforeVisibility);
+assert.equal(run('redo.length'),redoBeforeVisibility);
+for(let i=0;i<3;i++)get('layerVisibility'+i).onclick();
+for(let i=0;i<3;i++)assert.equal(displayedLayers[i],run(`layers[${2-i}].image`));
+run("setTool('pen')");
+c.handlers.pointerdown(event(103));
+assert.equal(get('layerVisibility1').disabled,true);
+get('layerVisibility1').onclick();
+assert.equal(run('layers[1].visible'),true);
+c.handlers.pointerup(event(103));
+assert.equal(get('layerVisibility1').disabled,false);
+get('layerVisibility1').onclick();
+get('undo').onclick();
+assert.equal(run('layers[1].visible'),false);
+assert.equal(otherContexts[0].value,middlePixels);
+get('redo').onclick();
+assert.equal(run('layers[1].visible'),false);
+assert.ok(otherContexts[0].value>middlePixels);
+get('layerVisibility1').onclick();
+assert.equal(displayedLayers.length,3);
+console.log('PASS: layer visibility, hidden drawing guard, preserved images/history, picker access and stroke visibility lock');

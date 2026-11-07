@@ -2,7 +2,59 @@
 // 描画データは透明背景で保持し、スポイトとPNG保存では白背景を合成する。
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const displayCtx = canvas.getContext('2d', { willReadFrequently: true });
+// 上から最前面・中間・背面。各レイヤーを透明な画像として独立させる。
+const layers = ['最前面', '中間', '背面'].map((name) => {
+  const image = document.createElement('canvas');
+  image.width = image.height = 1024;
+  return {
+    name,
+    visible: true,
+    image,
+    context: image.getContext('2d', { willReadFrequently: true }),
+  };
+});
+let selectedLayer = 0;
+let ctx = layers[selectedLayer].context;
+
+function renderLayers() {
+  displayCtx.clearRect(0, 0, 1024, 1024);
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (layers[i].visible) displayCtx.drawImage(layers[i].image, 0, 0);
+  }
+}
+function layerButtons(updatePreviews = false) {
+  layers.forEach((layer, i) => {
+    const button = $('layer' + i);
+    button.setAttribute('aria-pressed', i === selectedLayer);
+    button.disabled = active !== null;
+    const visibilityButton = $('layerVisibility' + i);
+    visibilityButton.setAttribute('aria-pressed', layer.visible);
+    visibilityButton.title = layer.name + (layer.visible ? 'を非表示にする' : 'を表示する');
+    visibilityButton.disabled = active !== null;
+    if (updatePreviews) {
+      const preview = $('layerPreview' + i);
+      const previewCtx = preview.getContext('2d');
+      previewCtx.clearRect(0, 0, preview.width, preview.height);
+      previewCtx.drawImage(layer.image, 0, 0, preview.width, preview.height);
+    }
+  });
+}
+function selectLayer(index) {
+  if (active !== null || !Number.isInteger(index) || !layers[index]) return;
+  selectedLayer = index;
+  ctx = layers[index].context;
+  layerButtons();
+}
+layers.forEach((_, i) => {
+  $('layer' + i).onclick = () => selectLayer(i);
+  $('layerVisibility' + i).onclick = () => {
+    if (active !== null) return;
+    layers[i].visible = !layers[i].visible;
+    renderLayers();
+    layerButtons();
+  };
+});
 
 // カラーセットの並びと、影・ハイライトの調整項目。
 const roles = ['濃い影', '影', 'ベース', 'ハイライト', '明るいハイライト'];
@@ -271,11 +323,16 @@ const snapshot = () => ctx.getImageData(0, 0, 1024, 1024);
 function historyButtons() {
   $('undo').disabled = !undo.length || active !== null;
   $('redo').disabled = !redo.length || active !== null;
+  layerButtons();
 }
 function travel(from, to) {
   if (active !== null || !from.length) return;
-  to.push(snapshot());
-  ctx.putImageData(from.pop(), 0, 0);
+  const entry = from.pop();
+  selectLayer(entry.layer);
+  to.push({ layer: entry.layer, image: snapshot() });
+  ctx.putImageData(entry.image, 0, 0);
+  renderLayers();
+  layerButtons(true);
   historyButtons();
 }
 function setTool(value) {
@@ -520,7 +577,7 @@ function point(e) {
   };
 }
 function sample(p) {
-  const [r, g, b, a] = ctx.getImageData(
+  const [r, g, b, a] = displayCtx.getImageData(
     Math.max(0, Math.min(1023, Math.floor(p.x))),
     Math.max(0, Math.min(1023, Math.floor(p.y))),
     1,
@@ -579,8 +636,10 @@ canvas.addEventListener('pointerdown', (e) => {
     sample(p);
     return;
   }
+  if (!layers[selectedLayer].visible) return;
   active = {
     id: e.pointerId,
+    layer: selectedLayer,
     before: snapshot(),
     last: p,
     tool,
@@ -592,23 +651,27 @@ canvas.addEventListener('pointerdown', (e) => {
     strokeCtx.clearRect(0, 0, 1024, 1024);
   canvas.setPointerCapture(e.pointerId);
   draw(p, true);
+  renderLayers();
   historyButtons();
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!active || active.id !== e.pointerId) return;
   for (const event of e.getCoalescedEvents?.() || [e]) draw(point(event));
+  renderLayers();
 });
 function finish(e, cancel = false) {
   if (!active || active.id !== e.pointerId) return;
   if (cancel) ctx.putImageData(active.before, 0, 0);
   else {
     draw(point(e));
-    undo.push(active.before);
+    undo.push({ layer: active.layer, image: active.before });
     if (undo.length > 10) undo.shift();
     redo.length = 0;
   }
   active = null;
   ctx.globalCompositeOperation = 'source-over';
+  renderLayers();
+  layerButtons(true);
   historyButtons();
   if (fitZoom) renderZoom();
   if (canvas.hasPointerCapture(e.pointerId))
@@ -689,3 +752,5 @@ document.addEventListener('keydown', (e) => {
 selectColor(...selected);
 setTool('pen');
 historyButtons();
+renderLayers();
+layerButtons(true);

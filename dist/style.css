@@ -614,3 +614,77 @@ main {
 .set-name[hidden] {
   display: none;
 }
+
+/* レイヤーは画面上の並びと重なり順を揃える。 */
+.layer-panel {
+  flex-shrink: 0;
+  border-top: 1px solid #3b3b3b;
+  margin-top: 24px;
+  padding-top: 16px;
+}
+.layer-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.layer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  border: 1px solid #3b3b3b;
+  border-radius: 0;
+  background: #222222;
+}
+.layer-row:has(.layer-button[aria-pressed='true']) {
+  border-color: #dddddd;
+  background: #3b3b3b;
+}
+.layer-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 64px;
+  padding: 5px;
+  font-size: 11px;
+  text-align: left;
+}
+.layer-button,
+.layer-visibility,
+.layer-button:hover,
+.layer-visibility:hover {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.layer-button:disabled,
+.layer-visibility:disabled {
+  opacity: 1;
+}
+.layer-visibility {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 5px;
+}
+.layer-visibility svg {
+  width: 20px;
+  height: 20px;
+}
+.layer-visibility[aria-pressed='true'] .eye-slash {
+  display: none;
+}
+canvas.layer-preview {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border: 1px solid #666666;
+  border-radius: 2px;
+  box-shadow: none;
+  pointer-events: none;
+  background-color: #fff;
+  background-image: conic-gradient(#ddd 25%, transparent 0 50%, #ddd 0 75%, transparent 0);
+  background-size: 8px 8px;
+}
